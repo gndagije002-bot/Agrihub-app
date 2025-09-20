@@ -1,9 +1,17 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+
+# Configure matplotlib before importing
+import matplotlib
+matplotlib.use('Agg')  # Use non-interactive backend for cloud deployment
 import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy import stats
+
+# Set matplotlib style for better appearance
+plt.style.use('default')
+sns.set_palette("husl")
 
 # Page configuration
 st.set_page_config(
@@ -89,7 +97,7 @@ fertilizer_data = fertilizer_data.sort_values("Year")
 
 # Main title
 st.title("Trend in Agriculture - Lebanon")
-st.subheader("Fertilizer Consumption Analysis (1960-2020)")
+st.subheader("Comprehensive Analysis of Fertilizer Consumption Patterns and Agricultural Development")
 
 # Create tabs for better organization
 tab1, tab2, tab3, tab4 = st.tabs(["📊 Interactive Analysis", "🔍 Detailed Statistics", "📈 Advanced Analytics", "📋 Data Explorer"])
@@ -142,6 +150,7 @@ with tab1:
         ].copy()
         
         # Handle outliers based on selection
+        outliers = pd.DataFrame()  # Initialize empty outliers dataframe
         if outlier_handling == "Remove Extreme Outliers" and len(filtered_data) > 5:
             Q1 = filtered_data['Value'].quantile(0.25)
             Q3 = filtered_data['Value'].quantile(0.75)
@@ -149,6 +158,8 @@ with tab1:
             lower_bound = Q1 - 2.5 * IQR
             upper_bound = Q3 + 2.5 * IQR
             original_count = len(filtered_data)
+            outliers = filtered_data[(filtered_data['Value'] < lower_bound) | 
+                                   (filtered_data['Value'] > upper_bound)]
             filtered_data = filtered_data[(filtered_data['Value'] >= lower_bound) & 
                                         (filtered_data['Value'] <= upper_bound)]
             removed_count = original_count - len(filtered_data)
@@ -177,112 +188,148 @@ with tab1:
             with col1:
                 st.markdown(f"### 📊 Primary Analysis: {viz_type}")
                 
-                # Create enhanced visualizations
-                if viz_type == "Line Chart":
-                    fig, ax = plt.subplots(figsize=(12, 6))
-                    ax.plot(filtered_data['Year'], filtered_data['Value'], 
-                           marker='o', linewidth=2, markersize=4, color='#2E8B57')
-                    
-                    # Add trend line if requested
-                    if show_trend and len(filtered_data) > 2:
-                        z = np.polyfit(filtered_data['Year'], filtered_data['Value'], 1)
-                        p = np.poly1d(z)
-                        ax.plot(filtered_data['Year'], p(filtered_data['Year']), 
-                               "--", alpha=0.8, color='red', label='Trend Line')
-                    
-                    # Add moving average if requested
-                    if show_moving_avg and len(filtered_data) >= window_size:
-                        moving_avg = filtered_data['Value'].rolling(window=window_size, center=True).mean()
-                        ax.plot(filtered_data['Year'], moving_avg, 
-                               color='orange', linewidth=2, alpha=0.7, label=f'{window_size}-Year Moving Average')
-                    
-                    # Highlight outliers if requested
-                    if outlier_handling == "Highlight Outliers":
-                        Q1 = filtered_data['Value'].quantile(0.25)
-                        Q3 = filtered_data['Value'].quantile(0.75)
-                        IQR = Q3 - Q1
-                        outliers = filtered_data[(filtered_data['Value'] < Q1 - 1.5*IQR) | 
-                                                (filtered_data['Value'] > Q3 + 1.5*IQR)]
-                        if not outliers.empty:
-                            ax.scatter(outliers['Year'], outliers['Value'], 
-                                     color='red', s=100, alpha=0.7, label='Outliers')
-                    
-                    ax.set_xlabel('Year')
-                    ax.set_ylabel('Consumption (% of production)')
-                    ax.set_title('Fertilizer Consumption Trend Over Time')
-                    ax.grid(True, alpha=0.3)
-                    if show_trend or show_moving_avg or (outlier_handling == "Highlight Outliers" and 'outliers' in locals() and not outliers.empty):
+                # Create enhanced visualizations with proper error handling
+                try:
+                    if viz_type == "Line Chart":
+                        fig, ax = plt.subplots(figsize=(12, 6))
+                        
+                        # Main line plot
+                        ax.plot(filtered_data['Year'], filtered_data['Value'], 
+                               marker='o', linewidth=2, markersize=4, color='#2E8B57',
+                               label='Fertilizer Consumption')
+                        
+                        # Add trend line if requested
+                        if show_trend and len(filtered_data) > 2:
+                            z = np.polyfit(filtered_data['Year'], filtered_data['Value'], 1)
+                            p = np.poly1d(z)
+                            ax.plot(filtered_data['Year'], p(filtered_data['Year']), 
+                                   "--", alpha=0.8, color='red', linewidth=2, label='Trend Line')
+                        
+                        # Add moving average if requested
+                        if show_moving_avg and len(filtered_data) >= window_size:
+                            moving_avg = filtered_data['Value'].rolling(window=window_size, center=True).mean()
+                            ax.plot(filtered_data['Year'], moving_avg, 
+                                   color='orange', linewidth=2, alpha=0.7, 
+                                   label=f'{window_size}-Year Moving Average')
+                        
+                        # Highlight outliers if requested
+                        if outlier_handling == "Highlight Outliers":
+                            Q1 = filtered_data['Value'].quantile(0.25)
+                            Q3 = filtered_data['Value'].quantile(0.75)
+                            IQR = Q3 - Q1
+                            outliers = filtered_data[(filtered_data['Value'] < Q1 - 1.5*IQR) | 
+                                                    (filtered_data['Value'] > Q3 + 1.5*IQR)]
+                            if not outliers.empty:
+                                ax.scatter(outliers['Year'], outliers['Value'], 
+                                         color='red', s=100, alpha=0.7, label='Outliers', marker='x')
+                        
+                        ax.set_xlabel('Year', fontsize=12)
+                        ax.set_ylabel('Consumption (% of production)', fontsize=12)
+                        ax.set_title('Fertilizer Consumption Trend Over Time', fontsize=14, fontweight='bold')
+                        ax.grid(True, alpha=0.3)
+                        
+                        # Show legend only if there are multiple elements
+                        handles, labels = ax.get_legend_handles_labels()
+                        if len(handles) > 1:
+                            ax.legend(loc='best')
+                        
+                        plt.tight_layout()
+                        st.pyplot(fig)
+                        plt.close(fig)
+                        
+                    elif viz_type == "Area Chart":
+                        fig, ax = plt.subplots(figsize=(12, 6))
+                        
+                        ax.fill_between(filtered_data['Year'], filtered_data['Value'], 
+                                       alpha=0.6, color='#2E8B57', label='Fertilizer Consumption')
+                        ax.plot(filtered_data['Year'], filtered_data['Value'], 
+                               color='#1B5E20', linewidth=2)
+                        
+                        ax.set_xlabel('Year', fontsize=12)
+                        ax.set_ylabel('Consumption (% of production)', fontsize=12)
+                        ax.set_title('Fertilizer Consumption Area Chart', fontsize=14, fontweight='bold')
+                        ax.grid(True, alpha=0.3)
+                        
+                        plt.tight_layout()
+                        st.pyplot(fig)
+                        plt.close(fig)
+                        
+                    elif viz_type == "Box Plot":
+                        fig, ax = plt.subplots(figsize=(10, 6))
+                        
+                        # Create decade-based box plot for better insights
+                        filtered_data_copy = filtered_data.copy()
+                        filtered_data_copy['Decade'] = (filtered_data_copy['Year'] // 10) * 10
+                        decades = sorted(filtered_data_copy['Decade'].unique())
+                        
+                        if len(decades) > 1:
+                            decade_data = [filtered_data_copy[filtered_data_copy['Decade'] == decade]['Value'].values 
+                                         for decade in decades]
+                            decade_labels = [f"{int(decade)}s" for decade in decades]
+                            
+                            box_plot = ax.boxplot(decade_data, labels=decade_labels, patch_artist=True)
+                            for patch in box_plot['boxes']:
+                                patch.set_facecolor('#2E8B57')
+                                patch.set_alpha(0.7)
+                            
+                            ax.set_xlabel('Decade', fontsize=12)
+                            ax.set_ylabel('Consumption (% of production)', fontsize=12)
+                            ax.set_title('Distribution by Decade', fontsize=14, fontweight='bold')
+                        else:
+                            box_plot = ax.boxplot(filtered_data['Value'], patch_artist=True)
+                            for patch in box_plot['boxes']:
+                                patch.set_facecolor('#2E8B57')
+                                patch.set_alpha(0.7)
+                            ax.set_ylabel('Consumption (% of production)', fontsize=12)
+                            ax.set_title('Overall Distribution', fontsize=14, fontweight='bold')
+                            ax.set_xticklabels(['All Data'])
+                            
+                        ax.grid(True, alpha=0.3)
+                        plt.tight_layout()
+                        st.pyplot(fig)
+                        plt.close(fig)
+                        
+                    else:  # Histogram
+                        fig, ax = plt.subplots(figsize=(10, 6))
+                        
+                        n, bins, patches = ax.hist(filtered_data['Value'], bins=15, alpha=0.7, 
+                                                  color='skyblue', edgecolor='black', linewidth=0.5)
+                        
+                        # Color bars based on value ranges
+                        q10 = filtered_data['Value'].quantile(0.1)
+                        q90 = filtered_data['Value'].quantile(0.9)
+                        
+                        for i, (patch, bin_start, bin_end) in enumerate(zip(patches, bins[:-1], bins[1:])):
+                            bin_center = (bin_start + bin_end) / 2
+                            if bin_center > q90:
+                                patch.set_facecolor('red')
+                                patch.set_alpha(0.8)
+                            elif bin_center < q10:
+                                patch.set_facecolor('orange')
+                                patch.set_alpha(0.8)
+                        
+                        # Add mean and median lines
+                        mean_val = filtered_data['Value'].mean()
+                        median_val = filtered_data['Value'].median()
+                        
+                        ax.axvline(mean_val, color='red', linestyle='--', 
+                                 linewidth=2, label=f'Mean: {mean_val:.1f}%')
+                        ax.axvline(median_val, color='green', linestyle='--', 
+                                 linewidth=2, label=f'Median: {median_val:.1f}%')
+                        
+                        ax.set_xlabel('Consumption (%)', fontsize=12)
+                        ax.set_ylabel('Frequency', fontsize=12)
+                        ax.set_title('Distribution of Consumption Values', fontsize=14, fontweight='bold')
                         ax.legend()
-                    st.pyplot(fig)
-                    plt.close()
-                    
-                elif viz_type == "Area Chart":
-                    fig, ax = plt.subplots(figsize=(12, 6))
-                    ax.fill_between(filtered_data['Year'], filtered_data['Value'], 
-                                   alpha=0.6, color='#2E8B57')
-                    ax.plot(filtered_data['Year'], filtered_data['Value'], 
-                           color='#1B5E20', linewidth=2)
-                    ax.set_xlabel('Year')
-                    ax.set_ylabel('Consumption (% of production)')
-                    ax.set_title('Fertilizer Consumption Area Chart')
-                    ax.grid(True, alpha=0.3)
-                    st.pyplot(fig)
-                    plt.close()
-                    
-                elif viz_type == "Box Plot":
-                    fig, ax = plt.subplots(figsize=(8, 6))
-                    
-                    # Create decade-based box plot for better insights
-                    filtered_data['Decade'] = (filtered_data['Year'] // 10) * 10
-                    decades = filtered_data['Decade'].unique()
-                    
-                    if len(decades) > 1:
-                        decade_data = [filtered_data[filtered_data['Decade'] == decade]['Value'].values 
-                                     for decade in sorted(decades)]
-                        decade_labels = [f"{int(decade)}s" for decade in sorted(decades)]
+                        ax.grid(True, alpha=0.3)
                         
-                        box_plot = ax.boxplot(decade_data, labels=decade_labels, patch_artist=True)
-                        for patch in box_plot['boxes']:
-                            patch.set_facecolor('#2E8B57')
-                            patch.set_alpha(0.7)
+                        plt.tight_layout()
+                        st.pyplot(fig)
+                        plt.close(fig)
                         
-                        ax.set_xlabel('Decade')
-                        ax.set_ylabel('Consumption (% of production)')
-                        ax.set_title('Distribution by Decade')
-                    else:
-                        ax.boxplot(filtered_data['Value'], patch_artist=True)
-                        ax.set_ylabel('Consumption (% of production)')
-                        ax.set_title('Overall Distribution')
-                        
-                    ax.grid(True, alpha=0.3)
-                    st.pyplot(fig)
-                    plt.close()
-                    
-                else:  # Histogram
-                    fig, ax = plt.subplots(figsize=(10, 6))
-                    n, bins, patches = ax.hist(filtered_data['Value'], bins=15, alpha=0.7, color='skyblue', edgecolor='black')
-                    
-                    # Color bars based on value ranges
-                    for i, (patch, bin_start, bin_end) in enumerate(zip(patches, bins[:-1], bins[1:])):
-                        if bin_end > filtered_data['Value'].quantile(0.9):
-                            patch.set_facecolor('red')
-                            patch.set_alpha(0.8)
-                        elif bin_start < filtered_data['Value'].quantile(0.1):
-                            patch.set_facecolor('orange')
-                            patch.set_alpha(0.8)
-                    
-                    ax.axvline(filtered_data['Value'].mean(), color='red', linestyle='--', 
-                             linewidth=2, label=f'Mean: {filtered_data["Value"].mean():.1f}%')
-                    ax.axvline(filtered_data['Value'].median(), color='green', linestyle='--', 
-                             linewidth=2, label=f'Median: {filtered_data["Value"].median():.1f}%')
-                    
-                    ax.set_xlabel('Consumption (%)')
-                    ax.set_ylabel('Frequency')
-                    ax.set_title('Distribution of Consumption Values')
-                    ax.legend()
-                    ax.grid(True, alpha=0.3)
-                    st.pyplot(fig)
-                    plt.close()
+                except Exception as e:
+                    st.error(f"Error creating visualization: {str(e)}")
+                    st.info("Please try a different visualization type or check your data.")
             
             with col2:
                 st.markdown("### 📊 Enhanced Data Summary")
@@ -321,7 +368,7 @@ with tab1:
 with tab2:
     st.markdown("## 🔍 Detailed Statistical Analysis")
     
-    if not fertilizer_data.empty:
+    if not fertilizer_data.empty and not filtered_data.empty:
         col1, col2 = st.columns(2)
         
         with col1:
@@ -376,13 +423,17 @@ with tab3:
             st.markdown("### 🔬 Statistical Tests")
             
             # Normality test
-            shapiro_stat, shapiro_p = stats.shapiro(filtered_data['Value'])
-            st.markdown(f"**Shapiro-Wilk Normality Test:**")
-            st.write(f"Statistic: {shapiro_stat:.4f}, p-value: {shapiro_p:.4f}")
-            if shapiro_p > 0.05:
-                st.success("Data appears normally distributed")
-            else:
-                st.warning("Data does not appear normally distributed")
+            if len(filtered_data) >= 3:
+                try:
+                    shapiro_stat, shapiro_p = stats.shapiro(filtered_data['Value'])
+                    st.markdown(f"**Shapiro-Wilk Normality Test:**")
+                    st.write(f"Statistic: {shapiro_stat:.4f}, p-value: {shapiro_p:.4f}")
+                    if shapiro_p > 0.05:
+                        st.success("Data appears normally distributed")
+                    else:
+                        st.warning("Data does not appear normally distributed")
+                except Exception as e:
+                    st.warning("Cannot perform normality test on this dataset")
             
             # Outlier detection
             Q1 = filtered_data['Value'].quantile(0.25)
@@ -425,36 +476,36 @@ with tab3:
 with tab4:
     st.markdown("## 📋 Data Explorer")
     
-    col1, col2 = st.columns([2, 1])
-    
-    with col1:
-        st.markdown("### 🗃️ Raw Data View")
+    if not filtered_data.empty:
+        col1, col2 = st.columns([2, 1])
         
-        # Enhanced data display with sorting and filtering
-        display_data = filtered_data[['Year', 'Value']].copy()
-        display_data['Value'] = display_data['Value'].round(2)
+        with col1:
+            st.markdown("### 🗃️ Raw Data View")
+            
+            # Enhanced data display with sorting and filtering
+            display_data = filtered_data[['Year', 'Value']].copy()
+            display_data['Value'] = display_data['Value'].round(2)
+            
+            # Add calculated fields
+            if len(display_data) > 1:
+                display_data = display_data.sort_values('Year')
+                display_data['YoY_Change'] = display_data['Value'].pct_change() * 100
+                display_data['YoY_Change'] = display_data['YoY_Change'].round(2)
+            
+            # Sort options
+            sort_by = st.selectbox("Sort by:", ["Year", "Value", "YoY_Change"] if 'YoY_Change' in display_data.columns else ["Year", "Value"])
+            sort_order = st.radio("Order:", ["Ascending", "Descending"], horizontal=True)
+            
+            if sort_order == "Descending":
+                display_data = display_data.sort_values(sort_by, ascending=False)
+            else:
+                display_data = display_data.sort_values(sort_by, ascending=True)
+            
+            st.dataframe(display_data, use_container_width=True, height=400)
         
-        # Add calculated fields
-        if len(display_data) > 1:
-            display_data = display_data.sort_values('Year')
-            display_data['YoY_Change'] = display_data['Value'].pct_change() * 100
-            display_data['YoY_Change'] = display_data['YoY_Change'].round(2)
-        
-        # Sort options
-        sort_by = st.selectbox("Sort by:", ["Year", "Value", "YoY_Change"] if 'YoY_Change' in display_data.columns else ["Year", "Value"])
-        sort_order = st.radio("Order:", ["Ascending", "Descending"], horizontal=True)
-        
-        if sort_order == "Descending":
-            display_data = display_data.sort_values(sort_by, ascending=False)
-        else:
-            display_data = display_data.sort_values(sort_by, ascending=True)
-        
-        st.dataframe(display_data, use_container_width=True, height=400)
-    
-    with col2:
-        st.markdown("### 📊 Data Export Options")
-        
-        if not filtered_data.empty:
+        with col2:
+            st.markdown("### 📊 Data Export Options")
+            
             # Multiple export formats
             csv_data = display_data.to_csv(index=False)
             
@@ -475,11 +526,12 @@ with tab4:
                 file_name=f"lebanon_fertilizer_summary_{year_range[0]}_{year_range[1]}.csv",
                 mime="text/csv"
             )
-        
-        st.markdown("### ℹ️ Data Information")
-        st.info(f"**Dataset Period:** {min_year} - {max_year}")
-        st.info(f"**Total Records:** {len(fertilizer_data)}")
-        st.info(f"**Filtered Records:** {len(filtered_data) if not filtered_data.empty else 0}")
+            
+            st.markdown("### ℹ️ Data Information")
+            if not fertilizer_data.empty:
+                st.info(f"**Dataset Period:** {min_year} - {max_year}")
+                st.info(f"**Total Records:** {len(fertilizer_data)}")
+                st.info(f"**Filtered Records:** {len(filtered_data)}")
 
 # Enhanced insights section
 st.markdown("---")
@@ -539,7 +591,7 @@ if not filtered_data.empty:
         """, unsafe_allow_html=True)
 
     # Additional insights based on data characteristics
-    if len(outliers) > 0:
+    if 'outliers' in locals() and len(outliers) > 0:
         st.markdown(f"""
         <div class="warning-box">
         <h4>⚠️ Data Quality Alert</h4>
@@ -549,7 +601,7 @@ if not filtered_data.empty:
         <li>Data collection or measurement errors</li>
         <li>Exceptional agricultural or political circumstances</li>
         </ul>
-        <p>Consider investigating years: {', '.join(map(str, outliers['Year'].tolist()[:5]))}</p>
+        <p>Consider investigating years: {', '.join(map(str, outliers['Year'].tolist()[:5])) if not outliers.empty else 'None'}</p>
         </div>
         """, unsafe_allow_html=True)
 
