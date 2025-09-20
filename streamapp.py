@@ -2,14 +2,16 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 
-# Configure matplotlib before importing
+# Configure matplotlib BEFORE importing it
 import matplotlib
-matplotlib.use('Agg')  # Use non-interactive backend for cloud deployment
+matplotlib.use('Agg')  # Non-interactive backend for cloud deployment
 import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy import stats
+import plotly.express as px
+import plotly.graph_objects as go
 
-# Set matplotlib style for better appearance
+# Set matplotlib style
 plt.style.use('default')
 sns.set_palette("husl")
 
@@ -60,9 +62,7 @@ def load_data():
         st.error("⚠️ CSV file not found. Using sample data for demonstration.")
         years = list(range(1960, 2021))
         np.random.seed(42)
-        # Create more realistic sample data with some outliers
         base_values = np.random.uniform(80, 200, len(years))
-        # Add some outliers
         outlier_indices = np.random.choice(len(years), size=3, replace=False)
         base_values[outlier_indices] = np.random.uniform(400, 800, 3)
         
@@ -99,15 +99,14 @@ fertilizer_data = fertilizer_data.sort_values("Year")
 st.title("Trend in Agriculture - Lebanon")
 st.subheader("Comprehensive Analysis of Fertilizer Consumption Patterns and Agricultural Development")
 
-# Create tabs for better organization
+# Create tabs
 tab1, tab2, tab3, tab4 = st.tabs(["📊 Interactive Analysis", "🔍 Detailed Statistics", "📈 Advanced Analytics", "📋 Data Explorer"])
 
 with tab1:
-    # Sidebar for interactive controls
+    # Sidebar controls
     st.sidebar.header("🎛️ Interactive Controls")
     st.sidebar.markdown("---")
 
-    # Interactive Feature #1: Year Range Slider (Enhanced)
     if not fertilizer_data.empty:
         min_year = int(fertilizer_data["Year"].min())
         max_year = int(fertilizer_data["Year"].max())
@@ -120,21 +119,18 @@ with tab1:
             help="Drag to filter data by specific year range"
         )
         
-        # Interactive Feature #2: Visualization Type Selector (Enhanced)
         viz_type = st.sidebar.selectbox(
             "📊 Choose Primary Visualization Type",
             ["Line Chart", "Area Chart", "Histogram", "Box Plot"],
             help="Select different chart types to explore data perspectives"
         )
         
-        # NEW Interactive Feature #3: Outlier Handling
         outlier_handling = st.sidebar.radio(
             "🎯 Outlier Treatment",
             ["Include All Data", "Remove Extreme Outliers", "Highlight Outliers"],
             help="Choose how to handle extreme values in the analysis"
         )
         
-        # NEW Interactive Feature #4: Statistical Analysis Options
         st.sidebar.markdown("### 📊 Analysis Options")
         show_trend = st.sidebar.checkbox("Show Trend Line", value=True)
         show_confidence = st.sidebar.checkbox("Show Confidence Interval", value=False)
@@ -149,8 +145,8 @@ with tab1:
             (fertilizer_data["Year"] <= year_range[1])
         ].copy()
         
-        # Handle outliers based on selection
-        outliers = pd.DataFrame()  # Initialize empty outliers dataframe
+        # Handle outliers
+        outliers = pd.DataFrame()
         if outlier_handling == "Remove Extreme Outliers" and len(filtered_data) > 5:
             Q1 = filtered_data['Value'].quantile(0.25)
             Q3 = filtered_data['Value'].quantile(0.75)
@@ -166,7 +162,7 @@ with tab1:
             if removed_count > 0:
                 st.sidebar.info(f"Removed {removed_count} outlier(s)")
 
-        # Enhanced sidebar metrics
+        # Sidebar metrics
         st.sidebar.markdown("### 📈 Quick Stats")
         if not filtered_data.empty:
             st.sidebar.write(f"**Years in Range:** {year_range[1] - year_range[0] + 1}")
@@ -174,45 +170,39 @@ with tab1:
             st.sidebar.write(f"**Average Consumption:** {filtered_data['Value'].mean():.2f}%")
             st.sidebar.write(f"**Peak Consumption:** {filtered_data['Value'].max():.2f}%")
             
-            # Calculate and display trend
             if len(filtered_data) > 2:
                 slope, intercept, r_value, p_value, std_err = stats.linregress(filtered_data['Year'], filtered_data['Value'])
                 trend_direction = "↗️ Upward" if slope > 0 else "↘️ Downward"
                 st.sidebar.write(f"**Trend Direction:** {trend_direction}")
                 st.sidebar.write(f"**R² Value:** {r_value**2:.3f}")
 
-        # Main content area with enhanced visualizations
+        # Main visualization area
         if not filtered_data.empty:
             col1, col2 = st.columns([2.5, 1.5])
             
             with col1:
                 st.markdown(f"### 📊 Primary Analysis: {viz_type}")
                 
-                # Create enhanced visualizations with proper error handling
                 try:
                     if viz_type == "Line Chart":
                         fig, ax = plt.subplots(figsize=(12, 6))
                         
-                        # Main line plot
                         ax.plot(filtered_data['Year'], filtered_data['Value'], 
                                marker='o', linewidth=2, markersize=4, color='#2E8B57',
                                label='Fertilizer Consumption')
                         
-                        # Add trend line if requested
                         if show_trend and len(filtered_data) > 2:
                             z = np.polyfit(filtered_data['Year'], filtered_data['Value'], 1)
                             p = np.poly1d(z)
                             ax.plot(filtered_data['Year'], p(filtered_data['Year']), 
                                    "--", alpha=0.8, color='red', linewidth=2, label='Trend Line')
                         
-                        # Add moving average if requested
                         if show_moving_avg and len(filtered_data) >= window_size:
                             moving_avg = filtered_data['Value'].rolling(window=window_size, center=True).mean()
                             ax.plot(filtered_data['Year'], moving_avg, 
                                    color='orange', linewidth=2, alpha=0.7, 
                                    label=f'{window_size}-Year Moving Average')
                         
-                        # Highlight outliers if requested
                         if outlier_handling == "Highlight Outliers":
                             Q1 = filtered_data['Value'].quantile(0.25)
                             Q3 = filtered_data['Value'].quantile(0.75)
@@ -228,7 +218,6 @@ with tab1:
                         ax.set_title('Fertilizer Consumption Trend Over Time', fontsize=14, fontweight='bold')
                         ax.grid(True, alpha=0.3)
                         
-                        # Show legend only if there are multiple elements
                         handles, labels = ax.get_legend_handles_labels()
                         if len(handles) > 1:
                             ax.legend(loc='best')
@@ -257,7 +246,6 @@ with tab1:
                     elif viz_type == "Box Plot":
                         fig, ax = plt.subplots(figsize=(10, 6))
                         
-                        # Create decade-based box plot for better insights
                         filtered_data_copy = filtered_data.copy()
                         filtered_data_copy['Decade'] = (filtered_data_copy['Year'] // 10) * 10
                         decades = sorted(filtered_data_copy['Decade'].unique())
@@ -295,7 +283,6 @@ with tab1:
                         n, bins, patches = ax.hist(filtered_data['Value'], bins=15, alpha=0.7, 
                                                   color='skyblue', edgecolor='black', linewidth=0.5)
                         
-                        # Color bars based on value ranges
                         q10 = filtered_data['Value'].quantile(0.1)
                         q90 = filtered_data['Value'].quantile(0.9)
                         
@@ -308,7 +295,6 @@ with tab1:
                                 patch.set_facecolor('orange')
                                 patch.set_alpha(0.8)
                         
-                        # Add mean and median lines
                         mean_val = filtered_data['Value'].mean()
                         median_val = filtered_data['Value'].median()
                         
@@ -334,7 +320,6 @@ with tab1:
             with col2:
                 st.markdown("### 📊 Enhanced Data Summary")
                 
-                # Enhanced metrics with context - using normal text format
                 if not filtered_data.empty:
                     col_a, col_b = st.columns(2)
                     
@@ -348,7 +333,6 @@ with tab1:
                         st.write(f"**📐 Std Dev:** {filtered_data['Value'].std():.2f}%")
                         st.write(f"**📏 Range:** {filtered_data['Value'].max() - filtered_data['Value'].min():.2f}%")
                     
-                    # Advanced statistics
                     st.markdown("### 🔬 Advanced Metrics")
                     skewness = stats.skew(filtered_data['Value'])
                     kurtosis = stats.kurtosis(filtered_data['Value'])
@@ -358,7 +342,6 @@ with tab1:
                     st.write(f"**📊 Kurtosis:** {kurtosis:.3f}")
                     st.write(f"**📊 Coeff. of Variation:** {cv:.1f}%")
                     
-                    # Trend analysis
                     if len(filtered_data) > 1:
                         trend = "📈 Increasing" if filtered_data["Value"].iloc[-1] > filtered_data["Value"].iloc[0] else "📉 Decreasing"
                         change_pct = ((filtered_data["Value"].iloc[-1] - filtered_data["Value"].iloc[0]) / 
@@ -376,7 +359,6 @@ with tab2:
             desc_stats = filtered_data['Value'].describe()
             st.dataframe(desc_stats.round(2))
             
-            # Quartile analysis
             st.markdown("### 📊 Quartile Analysis")
             quartiles = {
                 'Mean': filtered_data['Value'].mean(),
@@ -392,7 +374,6 @@ with tab2:
             st.markdown("### 📈 Time Series Analysis")
             
             if len(filtered_data) > 10:
-                # Calculate year-over-year changes
                 filtered_data_sorted = filtered_data.sort_values('Year')
                 filtered_data_sorted['YoY_Change'] = filtered_data_sorted['Value'].pct_change() * 100
                 
@@ -404,7 +385,6 @@ with tab2:
                 st.write(f"**Max YoY Growth:** {max_growth:.2f}%")
                 st.write(f"**Max YoY Decline:** {min_growth:.2f}%")
                 
-                # Volatility periods
                 high_volatility_years = filtered_data_sorted[
                     abs(filtered_data_sorted['YoY_Change']) > filtered_data_sorted['YoY_Change'].std()
                 ]['Year'].tolist()
@@ -422,7 +402,6 @@ with tab3:
         with col1:
             st.markdown("### 🔬 Statistical Tests")
             
-            # Normality test
             if len(filtered_data) >= 3:
                 try:
                     shapiro_stat, shapiro_p = stats.shapiro(filtered_data['Value'])
@@ -435,7 +414,6 @@ with tab3:
                 except Exception as e:
                     st.warning("Cannot perform normality test on this dataset")
             
-            # Outlier detection
             Q1 = filtered_data['Value'].quantile(0.25)
             Q3 = filtered_data['Value'].quantile(0.75)
             IQR = Q3 - Q1
@@ -448,7 +426,6 @@ with tab3:
         with col2:
             st.markdown("### 🎯 Key Insights")
             
-            # Data quality assessment
             data_quality_score = 100
             issues = []
             
@@ -482,17 +459,14 @@ with tab4:
         with col1:
             st.markdown("### 🗃️ Raw Data View")
             
-            # Enhanced data display with sorting and filtering
             display_data = filtered_data[['Year', 'Value']].copy()
             display_data['Value'] = display_data['Value'].round(2)
             
-            # Add calculated fields
             if len(display_data) > 1:
                 display_data = display_data.sort_values('Year')
                 display_data['YoY_Change'] = display_data['Value'].pct_change() * 100
                 display_data['YoY_Change'] = display_data['YoY_Change'].round(2)
             
-            # Sort options
             sort_by = st.selectbox("Sort by:", ["Year", "Value", "YoY_Change"] if 'YoY_Change' in display_data.columns else ["Year", "Value"])
             sort_order = st.radio("Order:", ["Ascending", "Descending"], horizontal=True)
             
@@ -506,7 +480,6 @@ with tab4:
         with col2:
             st.markdown("### 📊 Data Export Options")
             
-            # Multiple export formats
             csv_data = display_data.to_csv(index=False)
             
             st.download_button(
@@ -516,7 +489,6 @@ with tab4:
                 mime="text/csv"
             )
             
-            # Summary statistics export
             summary_stats = filtered_data['Value'].describe().round(2)
             summary_csv = summary_stats.to_csv()
             
@@ -576,7 +548,6 @@ if not filtered_data.empty:
         volatility = filtered_data["Value"].std()
         stability_level = "Low" if volatility < 30 else "Moderate" if volatility < 80 else "High"
         
-        # Advanced volatility analysis
         cv = (volatility / filtered_data["Value"].mean()) * 100
         volatility_interpretation = "stable" if cv < 25 else "moderately volatile" if cv < 50 else "highly volatile"
         
@@ -590,7 +561,6 @@ if not filtered_data.empty:
         </div>
         """, unsafe_allow_html=True)
 
-    # Additional insights based on data characteristics
     if 'outliers' in locals() and len(outliers) > 0:
         st.markdown(f"""
         <div class="warning-box">
@@ -607,4 +577,4 @@ if not filtered_data.empty:
 
 # Footer
 st.markdown("---")
-st.markdown("🌱 **Lebanon Agricultural Development Analytics** | Enhanced Interactive Dashboard | Built with Streamlit & Advanced Analytics")
+st.markdown("🌱 **Lebanon Agricultural Development Analytics** | Enhanced Interactive Dashboard | Built with Streamlit & Matplotlib")
